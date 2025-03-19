@@ -1,0 +1,8 @@
+# Wokwi Library List
+# See https://docs.wokwi.com/guides/libraries
+
+ArduinoTrace
+Adafruit GFX Library
+Adafruit SSD1306
+JC_Button
+DHT sensor library
