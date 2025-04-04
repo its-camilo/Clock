@@ -11,6 +11,8 @@
 #include "Clock.h"
 #include "DisplayHandler.h"
 
+#include <HTTPClient.h>
+
 // Configuración existente
 Button setBtn(12), minBtn(5), hourBtn(23);
 
@@ -58,8 +60,31 @@ float currentHumidity = 0;
 String serialBuffer = "";
 const int MAX_SERIAL_BUFFER = 1000; // Limitar el tamaño del buffer
 
+// Función para enviar datos a ThingSpeak y parpadear el LED
 void sendToThingSpeak(float temperature, float humidity) {
-  // Código existente
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(14, HIGH);
+    HTTPClient http;
+    String url = String(thingspeakServer) + "?api_key=" + thingspeakApiKey 
+                 + "&field1=" + String(temperature) 
+                 + "&field2=" + String(humidity);
+    
+    http.begin(url);
+    int httpResponseCode = http.GET();
+    if (httpResponseCode > 0) {
+      Serial.print("ThingSpeak response: ");
+      Serial.println(httpResponseCode);
+    } else {
+      Serial.print("Error en la petición HTTP: ");
+      Serial.println(httpResponseCode);
+    }
+    http.end();
+
+    delay(300);
+    digitalWrite(14, LOW);
+  } else {
+    Serial.println("WiFi desconectado");
+  }
 }
 
 // Función para manejar eventos de WebSocket
@@ -100,8 +125,29 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
           Serial.println(statusMessage);
         }
         else if (command.startsWith("Set")) {
-          // Código existente para procesar comandos SET
-          webSocket.sendTXT(num, "Comando SET recibido");
+          // Extraer el formato de hora hh:mm
+          String timeStr = command.substring(4); // Obtiene la parte después de "Set "
+          timeStr.trim(); // Elimina espacios en blanco
+    
+          // Verificar si el formato es correcto (hh:mm)
+          if (timeStr.length() == 5 && timeStr.charAt(2) == ':') {
+            // Extraer horas y minutos
+            int hh = timeStr.substring(0, 2).toInt();
+            int mm = timeStr.substring(3, 5).toInt();
+        
+            // Validar que los valores sean correctos
+            if (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) {
+              // Llamar a la función para inicializar el reloj
+              myClock.init(hh, mm);
+              webSocket.sendTXT(num, "Reloj configurado a " + timeStr);
+            } 
+            else {
+                webSocket.sendTXT(num, "Error: formato de hora inválido. Use hh:mm (00-23:00-59)");
+            }
+          }
+            else {
+                webSocket.sendTXT(num, "Error: formato incorrecto. Use 'Set hh:mm'");
+            }
         }
         else {
           // Respuesta genérica para comandos no reconocidos
